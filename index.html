@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Melbourne Property Map</title>
+
+<link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                     "Microsoft YaHei", Arial, sans-serif;
+        overflow: hidden;
+    }
+
+    #map {
+        width: 100%;
+        height: 100%;
+    }
+
+    /* 右侧房产信息卡 */
+    #info-panel {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 390px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        background: rgba(255,255,255,0.97);
+        border-radius: 14px;
+        box-shadow: 0 4px 25px rgba(0,0,0,0.22);
+        z-index: 1000;
+        display: none;
+    }
+
+    #info-content {
+        padding: 22px;
+    }
+
+    #close-btn {
+        position: absolute;
+        right: 14px;
+        top: 10px;
+        border: none;
+        background: transparent;
+        font-size: 25px;
+        cursor: pointer;
+        color: #666;
+    }
+
+    .project-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        padding-right: 30px;
+    }
+
+    .address {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 14px;
+    }
+
+    .price {
+        font-size: 25px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-bottom: 20px;
+    }
+
+    .tag {
+        background: #f1f3f5;
+        border-radius: 7px;
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+
+    .section {
+        margin-top: 18px;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 700;
+        border-bottom: 1px solid #e5e5e5;
+        padding-bottom: 7px;
+        margin-bottom: 9px;
+    }
+
+    .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        padding: 5px 0;
+        font-size: 14px;
+    }
+
+    .row-label {
+        color: #666;
+        flex-shrink: 0;
+    }
+
+    .row-value {
+        text-align: right;
+        font-weight: 500;
+    }
+
+    .pros {
+        color: #16784b;
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+
+    .cons {
+        color: #b23b3b;
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+
+    /* 左上角标题 */
+    #map-title {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 900;
+        background: rgba(255,255,255,0.94);
+        padding: 12px 17px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    #legend {
+        position: absolute;
+        bottom: 25px;
+        left: 18px;
+        z-index: 900;
+        background: rgba(255,255,255,0.94);
+        padding: 12px 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        font-size: 13px;
+        line-height: 1.8;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .legend-line {
+        width: 20px;
+        height: 3px;
+        display: inline-block;
+    }
+
+    @media (max-width: 700px) {
+        #info-panel {
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            top: auto;
+            width: auto;
+            max-height: 55vh;
+        }
+
+        #map-title {
+            top: 10px;
+            left: 10px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<div id="map-title">
+    墨尔本买房地图
+</div>
+
+<div id="legend">
+
+    <div class="legend-item">
+        <span class="legend-dot" style="background:#d32f2f;"></span>
+        候选房产
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-dot" style="background:#1565c0;"></span>
+        火车站
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-dot" style="background:#00a6a6;"></span>
+        电车站
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-line" style="background:#455a64;"></span>
+        火车线路
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-line" style="background:#4db6ac;"></span>
+        电车线路
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-dot" style="background:#1976d2;"></span>
+        重要地点
+    </div>
+
+    <div class="legend-item">
+        <span class="legend-line" style="background:#777;"></span>
+        墨大 7 km 范围
+    </div>
+
+</div>
+
+<div id="info-panel">
+
+    <button id="close-btn" onclick="closeInfo()">×</button>
+
+    <div id="info-content"></div>
+
+</div>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+const map = L.map("map", {
+    zoomControl: true
+}).setView([-37.8136, 144.9631], 12);
+
+
+/* =========================
+   底图
+========================= */
+
+L.tileLayer(
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }
+).addTo(map);
+
+
+/* =========================
+   图层
+========================= */
+
+const propertyLayer = L.layerGroup().addTo(map);
+
+const trainStationLayer = L.layerGroup().addTo(map);
+
+const tramStopLayer = L.layerGroup().addTo(map);
+
+const trainLineLayer = L.layerGroup().addTo(map);
+
+const tramLineLayer = L.layerGroup().addTo(map);
+
+const importantPlaceLayer = L.layerGroup().addTo(map);
+
+const uni7kmLayer = L.layerGroup().addTo(map);
+
+
+/* =========================
+   工具函数
+========================= */
+
+function valueOrPending(value, pending = "待确认") {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+        return pending;
+    }
+
+    return value;
+}
+
+
+function escapeHtml(value) {
+
+    if (value === null || value === undefined) {
+        return "";
+    }
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+
+/* =========================
+   房产信息卡
+========================= */
+
+function openPropertyInfo(properties) {
+
+    const name =
+        valueOrPending(properties.name, "未命名房产");
+
+    const address =
+        valueOrPending(properties.address);
+
+    const priceText =
+        properties.price_text ||
+        (
+            properties.price !== null &&
+            properties.price !== undefined &&
+            properties.price !== ""
+                ? "A$" + Number(properties.price).toLocaleString()
+                : "价格待确认"
+        );
+
+    const bed =
+        valueOrPending(properties.bed);
+
+    const area =
+        valueOrPending(properties.area);
+
+    const status =
+        valueOrPending(properties.status);
+
+    const distanceUni =
+        valueOrPending(
+            properties.distance_uni,
+            "待计算"
+        );
+
+    const commute =
+        valueOrPending(
+            properties.commute,
+            "待计算"
+        );
+
+    const distanceCBD =
+        valueOrPending(
+            properties.distance_cbd,
+            "待计算"
+        );
+
+    const transport =
+        valueOrPending(
+            properties.transport,
+            "待补充"
+        );
+
+    const floors =
+        properties.floors ||
+        properties["floor"] ||
+        "待确认";
+
+    const units =
+        properties.units ||
+        properties["apartment"] ||
+        "待确认";
+
+    const totalCost =
+        valueOrPending(
+            properties.total_cost,
+            "待计算"
+        );
+
+    const annualCost =
+        valueOrPending(
+            properties.annual_cost,
+            "待计算"
+        );
+
+    const eligibility =
+        valueOrPending(
+            properties.eligibility,
+            "待确认"
+        );
+
+    const firb =
+        valueOrPending(
+            properties.FIRB,
+            "待确认"
+        );
+
+    const reg385 =
+        valueOrPending(
+            properties.reg38_5,
+            "待确认"
+        );
+
+    const foreignBuy =
+        valueOrPending(
+            properties.foreign_buy,
+            "待确认"
+        );
+
+    const score =
+        valueOrPending(
+            properties.score,
+            "待评分"
+        );
+
+    const safety =
+        valueOrPending(
+            properties.safety,
+            "待评估"
+        );
+
+    const pros =
+        valueOrPending(
+            properties.pros,
+            "待补充"
+        );
+
+    const cons =
+        valueOrPending(
+            properties.cons,
+            "待补充"
+        );
+
+
+    document.getElementById("info-content").innerHTML = `
+
+        <div class="project-title">
+            ${escapeHtml(name)}
+        </div>
+
+        <div class="address">
+            ${escapeHtml(address)}
+        </div>
+
+        <div class="price">
+            ${escapeHtml(priceText)}
+        </div>
+
+        <div class="tags">
+
+            <span class="tag">
+                ${escapeHtml(bed)}
+            </span>
+
+            <span class="tag">
+                ${escapeHtml(area)}㎡
+            </span>
+
+            <span class="tag">
+                ${escapeHtml(status)}
+            </span>
+
+        </div>
+
+
+        <div class="section">
+
+            <div class="section-title">
+                📍 位置
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    距墨大
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(distanceUni)} km
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    通勤
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(commute)} 分钟
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    距CBD
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(distanceCBD)} km
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    公共交通
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(transport)}
+                </span>
+            </div>
+
+        </div>
+
+
+        <div class="section">
+
+            <div class="section-title">
+                🏢 项目概况
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    总楼层
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(floors)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    总户数
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(units)}
+                </span>
+            </div>
+
+        </div>
+
+
+        <div class="section">
+
+            <div class="section-title">
+                💰 购房成本
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    总购房成本
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(totalCost)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    年持有成本
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(annualCost)}
+                </span>
+            </div>
+
+        </div>
+
+
+        <div class="section">
+
+            <div class="section-title">
+                🌏 外国人购买
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    购买资格
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(eligibility)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    FIRB
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(firb)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    Reg 38(5)
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(reg385)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    外国人购买
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(foreignBuy)}
+                </span>
+            </div>
+
+        </div>
+
+
+        <div class="section">
+
+            <div class="section-title">
+                ⭐ 评价
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    综合评分
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(score)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    治安
+                </span>
+
+                <span class="row-value">
+                    ${escapeHtml(safety)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    优点
+                </span>
+
+                <span class="row-value pros">
+                    ${escapeHtml(pros)}
+                </span>
+            </div>
+
+            <div class="row">
+                <span class="row-label">
+                    缺点
+                </span>
+
+                <span class="row-value cons">
+                    ${escapeHtml(cons)}
+                </span>
+            </div>
+
+        </div>
+
+    `;
+
+    document.getElementById("info-panel").style.display = "block";
+}
+
+
+function closeInfo() {
+
+    document.getElementById("info-panel").style.display = "none";
+
+}
+
+
+/* =========================
+   房产
+========================= */
+
+fetch("properties.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        const geojson = L.geoJSON(data, {
+
+            pointToLayer: function(feature, latlng) {
+
+                return L.circleMarker(latlng, {
+
+                    radius: 9,
+
+                    fillColor: "#d32f2f",
+
+                    color: "#ffffff",
+
+                    weight: 2,
+
+                    fillOpacity: 0.9
+
+                });
+
+            },
+
+            onEachFeature: function(feature, layer) {
+
+                const name =
+                    feature.properties.name ||
+                    "未命名房产";
+
+                layer.bindTooltip(
+                    name,
+                    {
+                        direction: "top"
+                    }
+                );
+
+                layer.on("click", function() {
+
+                    openPropertyInfo(
+                        feature.properties
+                    );
+
+                });
+
+            }
+
+        });
+
+        geojson.addTo(propertyLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "properties.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   火车站
+========================= */
+
+fetch("train_stations.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        L.geoJSON(data, {
+
+            pointToLayer: function(feature, latlng) {
+
+                return L.circleMarker(latlng, {
+
+                    radius: 5,
+
+                    fillColor: "#1565c0",
+
+                    color: "#ffffff",
+
+                    weight: 1,
+
+                    fillOpacity: 0.9
+
+                });
+
+            },
+
+            onEachFeature: function(feature, layer) {
+
+                const name =
+                    feature.properties.name ||
+                    feature.properties.NAME ||
+                    "火车站";
+
+                layer.bindTooltip(
+                    "🚆 " + name,
+                    {
+                        direction: "top"
+                    }
+                );
+
+            }
+
+        }).addTo(trainStationLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "train_stations.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   电车站
+========================= */
+
+fetch("tram_stops.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        L.geoJSON(data, {
+
+            pointToLayer: function(feature, latlng) {
+
+                return L.circleMarker(latlng, {
+
+                    radius: 4,
+
+                    fillColor: "#00a6a6",
+
+                    color: "#ffffff",
+
+                    weight: 1,
+
+                    fillOpacity: 0.9
+
+                });
+
+            },
+
+            onEachFeature: function(feature, layer) {
+
+                const name =
+                    feature.properties.name ||
+                    feature.properties.NAME ||
+                    "电车站";
+
+                layer.bindTooltip(
+                    "🚋 " + name,
+                    {
+                        direction: "top"
+                    }
+                );
+
+            }
+
+        }).addTo(tramStopLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "tram_stops.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   火车线路
+========================= */
+
+fetch("train_lines.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        L.geoJSON(data, {
+
+            style: {
+
+                color: "#455a64",
+
+                weight: 2.5,
+
+                opacity: 0.65
+
+            }
+
+        }).addTo(trainLineLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "train_lines.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   电车线路
+========================= */
+
+fetch("tram_lines.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        L.geoJSON(data, {
+
+            style: {
+
+                color: "#4db6ac",
+
+                weight: 2,
+
+                opacity: 0.65
+
+            }
+
+        }).addTo(tramLineLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "tram_lines.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   墨大 7 km 范围
+========================= */
+
+fetch("uni_7km.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        L.geoJSON(data, {
+
+            style: {
+
+                color: "#777777",
+
+                weight: 2,
+
+                opacity: 0.8,
+
+                fillColor: "#aaaaaa",
+
+                fillOpacity: 0.08
+
+            }
+
+        }).addTo(uni7kmLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "uni_7km.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   重要地点
+========================= */
+
+fetch("important_places.geojson")
+    .then(response => response.json())
+    .then(data => {
+
+        L.geoJSON(data, {
+
+            pointToLayer: function(feature, latlng) {
+
+                return L.circleMarker(latlng, {
+
+                    radius: 7,
+
+                    fillColor: "#1976d2",
+
+                    color: "#ffffff",
+
+                    weight: 2,
+
+                    fillOpacity: 0.9
+
+                });
+
+            },
+
+            onEachFeature: function(feature, layer) {
+
+                const name =
+                    feature.properties.name ||
+                    feature.properties.NAME ||
+                    "重要地点";
+
+                const type =
+                    feature.properties.type ||
+                    "";
+
+                const desc =
+                    feature.properties.desc ||
+                    "";
+
+                layer.bindTooltip(
+                    "📍 " + name,
+                    {
+                        direction: "top"
+                    }
+                );
+
+                layer.bindPopup(`
+
+                    <strong>${escapeHtml(name)}</strong>
+
+                    <br>
+
+                    ${escapeHtml(type)}
+
+                    <br>
+
+                    ${escapeHtml(desc)}
+
+                `);
+
+            }
+
+        }).addTo(importantPlaceLayer);
+
+    })
+    .catch(error => {
+
+        console.error(
+            "important_places.geojson 加载失败:",
+            error
+        );
+
+    });
+
+
+/* =========================
+   图层控制
+========================= */
+
+const overlays = {
+
+    "🏠 候选房产": propertyLayer,
+
+    "🚆 火车站": trainStationLayer,
+
+    "🚋 电车站": tramStopLayer,
+
+    "🚆 火车线路": trainLineLayer,
+
+    "🚋 电车线路": tramLineLayer,
+
+    "📍 重要地点": importantPlaceLayer,
+
+    "⭕ 墨大 7 km 范围": uni7kmLayer
+
+};
+
+L.control.layers(
+    null,
+    overlays,
+    {
+        collapsed: false
+    }
+).addTo(map);
+
+
+/* =========================
+   ESC 关闭信息卡
+========================= */
+
+document.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (event.key === "Escape") {
+
+            closeInfo();
+
+        }
+
+    }
+);
+
+</script>
+
+</body>
+</html>
